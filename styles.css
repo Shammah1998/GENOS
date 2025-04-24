@@ -536,6 +536,13 @@ body {
     border-top: 1px solid var(--glass-border);
 }
 
+.left-actions {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
 .action-btn {
     background: none;
     border: none;
@@ -549,7 +556,7 @@ body {
     justify-content: center;
     align-items: center;
     transition: all 0.2s;
-    margin-left: 6px;
+    margin-left: 0;
 }
 
 .action-btn:hover {
@@ -759,4 +766,16 @@ body {
     padding: 0;
     border: none;
     pointer-events: none;
+}
+
+/* Styles for recording state of voice button */
+.voice-btn.recording {
+    color: #ff3b30;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
 } 

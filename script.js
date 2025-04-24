@@ -146,7 +146,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Use first user message as title
                 const firstUserMessage = chat.messages.find(msg => msg.sender === 'You');
                 if (firstUserMessage) {
-                    title = firstUserMessage.content.substring(0, 25) + (firstUserMessage.content.length > 25 ? '...' : '');
+                    // Use first sentence or partial sentence for title
+                    let messageTitle = firstUserMessage.content.split(/[.!?]/)[0].trim();
+                    // Limit to 40 characters max
+                    title = messageTitle.substring(0, 40) + (messageTitle.length > 40 ? '...' : '');
                 }
             }
             
@@ -189,6 +192,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Display messages
         if (chat.messages.length === 0) {
+            // Add welcome header for new chat
+            const welcomeHeader = document.createElement('div');
+            welcomeHeader.className = 'welcome-header';
+            welcomeHeader.innerHTML = '<h1>What can I help with?</h1>';
+            chatMessages.appendChild(welcomeHeader);
+            
             // Add welcome message if chat is empty
             const welcomeMessage = {
                 sender: 'GENOS',
@@ -221,6 +230,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const message = chatInput.value.trim();
         if (!message) return;
 
+        // Remove welcome header if exists
+        const welcomeHeader = document.querySelector('.welcome-header');
+        if (welcomeHeader) {
+            chatMessages.removeChild(welcomeHeader);
+        }
+
         // Add user message to the chat
         const userMessage = {
             sender: 'You',
@@ -233,10 +248,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentChat) {
             currentChat.messages.push(userMessage);
             
-            // Update chat title if it's the first message
+            // Update chat title if it's the first message - use a more meaningful title based on message content
             if (currentChat.title === 'New Conversation' && currentChat.messages.length === 1) {
-                currentChat.title = message.substring(0, 25) + (message.length > 25 ? '...' : '');
-                currentChatTitle.textContent = currentChat.title;
+                // Get first sentence or partial sentence for title
+                let title = message.split(/[.!?]/)[0].trim();
+                // Limit to 40 characters max
+                title = title.substring(0, 40) + (title.length > 40 ? '...' : '');
+                currentChat.title = title;
+                currentChatTitle.textContent = title;
             }
             
             saveChats();
@@ -435,6 +454,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Update UI
                 chatMessages.innerHTML = '';
+                
+                // Add welcome header for empty chat
+                const welcomeHeader = document.createElement('div');
+                welcomeHeader.className = 'welcome-header';
+                welcomeHeader.innerHTML = '<h1>What can I help with?</h1>';
+                chatMessages.appendChild(welcomeHeader);
+                
                 currentChatTitle.textContent = 'New Conversation';
                 renderChatHistory();
             }
@@ -442,68 +468,141 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleAttachment() {
-        // In a real app, this would open a file selector
-        alert('Attachment functionality would open a file selector here.');
+        // Create file input element
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.style.display = 'none';
+        fileInput.multiple = true;
+        fileInput.accept = '.pdf,.doc,.docx,.txt,.jpg,.png,.gif,.xls,.xlsx,.ppt,.pptx,.zip,.rar';
         
-        // For demo purposes, let's simulate adding an attachment message
-        const message = "I'm attaching a file...";
+        // Append to body
+        document.body.appendChild(fileInput);
         
-        // Add to current chat and DOM
-        const userMessage = {
-            sender: 'You',
-            content: message,
-            timestamp: new Date().toISOString()
-        };
+        // Trigger click to open file dialog
+        fileInput.click();
         
-        const currentChat = chats.find(c => c.id === currentChatId);
-        if (currentChat) {
-            currentChat.messages.push(userMessage);
-            saveChats();
-        }
-        
-        addMessageToDOM('You', message, 'user-message');
-        
-        // Simulate AI thinking with loading indicator
-        const loadingEl = document.createElement('div');
-        loadingEl.className = 'message ai-message loading';
-        loadingEl.innerHTML = `
-            <div class="message-header ai-header">
-                <i class="fas fa-robot"></i> GENOS
-            </div>
-            <div class="message-content">
-                <div class="typing-indicator">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </div>
-            </div>
-        `;
-        chatMessages.appendChild(loadingEl);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        
-        // Get AI response with attachment context
-        getAIResponse("The user is trying to attach a file. Could you explain what file types are supported?", loadingEl);
+        // Handle file selection
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files.length > 0) {
+                const fileNames = Array.from(this.files).map(file => file.name).join(', ');
+                const message = `I'm attaching: ${fileNames}`;
+                
+                // Remove welcome header if exists
+                const welcomeHeader = document.querySelector('.welcome-header');
+                if (welcomeHeader) {
+                    chatMessages.removeChild(welcomeHeader);
+                }
+                
+                // Add to current chat and DOM
+                const userMessage = {
+                    sender: 'You',
+                    content: message,
+                    timestamp: new Date().toISOString()
+                };
+                
+                const currentChat = chats.find(c => c.id === currentChatId);
+                if (currentChat) {
+                    currentChat.messages.push(userMessage);
+                    
+                    // Update chat title if it's the first message
+                    if (currentChat.title === 'New Conversation' && currentChat.messages.length === 1) {
+                        currentChat.title = `Attachments: ${fileNames.substring(0, 30)}${fileNames.length > 30 ? '...' : ''}`;
+                        currentChatTitle.textContent = currentChat.title;
+                    }
+                    
+                    saveChats();
+                    renderChatHistory();
+                }
+                
+                addMessageToDOM('You', message, 'user-message');
+                
+                // Simulate AI thinking with loading indicator
+                const loadingEl = document.createElement('div');
+                loadingEl.className = 'message ai-message loading';
+                loadingEl.innerHTML = `
+                    <div class="message-header ai-header">
+                        <i class="fas fa-robot"></i> GENOS
+                    </div>
+                    <div class="message-content">
+                        <div class="typing-indicator">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                    </div>
+                `;
+                chatMessages.appendChild(loadingEl);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                
+                // Get AI response with attachment context
+                getAIResponse(`The user has attached the following files: ${fileNames}. Please acknowledge these attachments.`, loadingEl);
+            }
+            
+            // Remove the input from the DOM
+            document.body.removeChild(fileInput);
+        });
     }
     
     function handleVoice() {
-        // In a real app, this would activate voice input
-        alert('Voice input functionality would activate the microphone here.');
-        
-        // For demo purposes, simulate voice input messages
-        const voiceTexts = [
-            "Tell me about coding in JavaScript",
-            "How do I create a React component?",
-            "Can you explain async/await in JavaScript?"
-        ];
-        
-        const randomVoiceText = voiceTexts[Math.floor(Math.random() * voiceTexts.length)];
-        chatInput.value = randomVoiceText;
-        
-        // Let the user see what was "transcribed" before sending
-        setTimeout(() => {
-            // Focus on the input field
+        // Check if Speech Recognition is supported
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+            
+            // Configure recognition
+            recognition.lang = 'en-US';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            
+            // Create and show recording indicator
+            const voiceBtn = document.querySelector('.voice-btn');
+            voiceBtn.classList.add('recording');
+            voiceBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
+            
+            // Start listening
+            recognition.start();
+            
+            // Handle speech results
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                chatInput.value = transcript;
+                chatInput.focus();
+                
+                // Visual feedback that recording is complete
+                voiceBtn.classList.remove('recording');
+                voiceBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+            };
+            
+            // Handle end of speech recording
+            recognition.onend = function() {
+                voiceBtn.classList.remove('recording');
+                voiceBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+            };
+            
+            // Handle errors
+            recognition.onerror = function(event) {
+                console.error('Speech recognition error', event);
+                voiceBtn.classList.remove('recording');
+                voiceBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+                
+                // Show error message
+                alert('Speech recognition failed. Please try again or type your message.');
+            };
+        } else {
+            // Fallback if speech recognition not supported
+            alert('Speech recognition is not supported in your browser. Please try Chrome or Edge.');
+            
+            // For demo purposes, simulate voice input
+            const voiceTexts = [
+                "Tell me about coding in JavaScript",
+                "How do I create a React component?",
+                "Can you explain async/await in JavaScript?"
+            ];
+            
+            const randomVoiceText = voiceTexts[Math.floor(Math.random() * voiceTexts.length)];
+            chatInput.value = randomVoiceText;
             chatInput.focus();
-        }, 500);
+        }
     }
 
     function deleteChat(chatId) {
@@ -583,6 +682,21 @@ style.textContent = `
         z-index: 9999;
         pointer-events: none;
         animation: flash 0.3s ease-out;
+    }
+    
+    .welcome-header {
+        text-align: center;
+        padding: 40px 0;
+    }
+    
+    .welcome-header h1 {
+        font-size: 32px;
+        font-weight: 600;
+        background: linear-gradient(135deg, var(--primary-color), var(--tertiary-color));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 10px;
+        opacity: 0.9;
     }
     
     @keyframes flash {

@@ -10,14 +10,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatHistory = document.getElementById('chat-history');
     const currentChatTitle = document.getElementById('current-chat-title');
     const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+    const themeToggleBtn = document.getElementById('theme-toggle');
     const sidebar = document.querySelector('.sidebar');
 
     // State management
     let chats = [];
     let currentChatId = null;
+    let isDarkTheme = true;
 
     // Initialize app
     initApp();
+    
+    // Initialize syntax highlighting
+    hljs.configure({
+        languages: ['javascript', 'typescript', 'python', 'html', 'css', 'json', 'bash', 'markdown']
+    });
+    
+    // Initialize theme
+    loadTheme();
 
     // Event listeners
     sendBtn.addEventListener('click', sendMessage);
@@ -32,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     attachmentBtn.addEventListener('click', handleAttachment);
     voiceBtn.addEventListener('click', handleVoice);
     newChatBtn.addEventListener('click', createNewChat);
+    themeToggleBtn.addEventListener('click', toggleTheme);
     
     mobileMenuBtn.addEventListener('click', () => {
         sidebar.classList.toggle('show');
@@ -40,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Auto resize textarea as user types
     chatInput.addEventListener('input', () => {
         chatInput.style.height = 'auto';
-        chatInput.style.height = (chatInput.scrollHeight) + 'px';
+        chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + 'px';
     });
 
     // Functions
@@ -69,6 +80,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function saveChats() {
         localStorage.setItem('genosChats', JSON.stringify(chats));
+    }
+
+    function loadTheme() {
+        const savedTheme = localStorage.getItem('genosTheme');
+        if (savedTheme) {
+            isDarkTheme = savedTheme === 'dark';
+        }
+        updateThemeUI();
+    }
+    
+    function saveTheme() {
+        localStorage.setItem('genosTheme', isDarkTheme ? 'dark' : 'light');
+    }
+    
+    function toggleTheme() {
+        isDarkTheme = !isDarkTheme;
+        updateThemeUI();
+        saveTheme();
+        
+        // Add animation
+        const overlay = document.createElement('div');
+        overlay.className = 'theme-transition-overlay';
+        document.body.appendChild(overlay);
+        
+        setTimeout(() => {
+            document.body.removeChild(overlay);
+        }, 300);
+    }
+    
+    function updateThemeUI() {
+        document.body.classList.toggle('light-theme', !isDarkTheme);
+        themeToggleBtn.innerHTML = isDarkTheme ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
     }
 
     function createNewChat() {
@@ -108,12 +151,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             chatItem.innerHTML = `
-                <i class="far fa-comment"></i>
-                <span>${title}</span>
+                <div class="chat-item-content">
+                    <i class="far fa-comment"></i>
+                    <span class="chat-item-title">${title}</span>
+                </div>
+                <button class="delete-chat-btn" title="Delete conversation">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
             `;
             
-            chatItem.addEventListener('click', () => {
+            // Add click event for selecting the chat
+            chatItem.querySelector('.chat-item-content').addEventListener('click', () => {
                 loadChat(chat.id);
+            });
+            
+            // Add click event for delete button
+            chatItem.querySelector('.delete-chat-btn').addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent triggering the chat selection
+                deleteChat(chat.id);
             });
             
             chatHistory.appendChild(chatItem);
@@ -341,13 +396,30 @@ document.addEventListener('DOMContentLoaded', () => {
         
         chatMessages.appendChild(messageEl);
         chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Apply syntax highlighting to code blocks
+        messageEl.querySelectorAll('pre code').forEach((block) => {
+            hljs.highlightElement(block);
+        });
     }
     
     function formatMessage(text) {
+        // Convert markdown code blocks
+        text = text.replace(/```(\w*)([\s\S]*?)```/g, function(match, language, code) {
+            return `<pre><code class="language-${language || 'plaintext'}">${code.trim()}</code></pre>`;
+        });
+        
+        // Convert inline code
+        text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+        
         // Convert URLs to links
         const urlRegex = /(https?:\/\/[^\s]+)/g;
-        return text.replace(urlRegex, url => `<a href="${url}" target="_blank">${url}</a>`)
-                  .replace(/\n/g, '<br>');
+        text = text.replace(urlRegex, url => `<a href="${url}" target="_blank">${url}</a>`);
+        
+        // Convert line breaks
+        text = text.replace(/\n/g, '<br>');
+        
+        return text;
     }
     
     function clearCurrentChat() {
@@ -433,20 +505,56 @@ document.addEventListener('DOMContentLoaded', () => {
             chatInput.focus();
         }, 500);
     }
+
+    function deleteChat(chatId) {
+        // Confirm before deleting
+        if (confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
+            // Add visual feedback - fade out the chat item before removing
+            const chatElement = document.querySelector(`.chat-item[data-id="${chatId}"]`);
+            if (chatElement) {
+                chatElement.classList.add('deleting');
+                
+                // Short delay for animation before actual deletion
+                setTimeout(() => {
+                    // Find the chat index
+                    const chatIndex = chats.findIndex(c => c.id === chatId);
+                    
+                    if (chatIndex !== -1) {
+                        // Remove the chat from array
+                        chats.splice(chatIndex, 1);
+                        
+                        // Immediately save to localStorage for permanent deletion
+                        saveChats();
+                        
+                        // If we're deleting the current chat, load another one
+                        if (chatId === currentChatId) {
+                            if (chats.length > 0) {
+                                // Load the first available chat
+                                loadChat(chats[0].id);
+                            } else {
+                                // No more chats, create a new one
+                                createNewChat();
+                            }
+                        } else {
+                            // Just update the UI
+                            renderChatHistory();
+                        }
+                        
+                        console.log(`Chat ${chatId} permanently deleted.`);
+                    }
+                }, 200); // Short delay for animation
+            }
+        }
+    }
 });
 
-// Add CSS for the typing indicator
+// Add CSS for dynamic elements
 const style = document.createElement('style');
 style.textContent = `
-    .typing-indicator {
-        display: flex;
-        gap: 4px;
-    }
-    
     .typing-indicator span {
-        width: 6px;
-        height: 6px;
-        background-color: var(--primary-color);
+        width: 5px;
+        height: 5px;
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
         border-radius: 50%;
         animation: typing-bounce 1.3s infinite ease-in-out;
         opacity: 0.8;
@@ -464,28 +572,49 @@ style.textContent = `
         animation-delay: 0.3s;
     }
     
-    @keyframes typing-bounce {
-        0%, 60%, 100% {
-            transform: translateY(0);
-        }
-        30% {
-            transform: translateY(-4px);
-        }
+    .theme-transition-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.3);
+        opacity: 0;
+        z-index: 9999;
+        pointer-events: none;
+        animation: flash 0.3s ease-out;
     }
     
-    @keyframes fadeIn {
-        from {
+    @keyframes flash {
+        0% {
             opacity: 0;
-            transform: translateY(10px);
         }
-        to {
-            opacity: 1;
-            transform: translateY(0);
+        50% {
+            opacity: 0.5;
+        }
+        100% {
+            opacity: 0;
         }
     }
     
-    .message {
-        animation: fadeIn 0.3s ease-out;
+    .light-theme {
+        --primary-color: #6366f1;
+        --secondary-color: #8b5cf6;
+        --tertiary-color: #9d5cff;
+        --accent-color: #10b981;
+        --background-color: #f8fafc;
+        --chat-bg: #ffffff;
+        --user-message-bg: rgba(220, 230, 255, 0.7);
+        --ai-message-bg: rgba(240, 240, 255, 0.7);
+        --border-color: rgba(226, 232, 240, 0.8);
+        --text-color: #334155;
+        --placeholder-color: #94a3b8;
+        --shadow-color: rgba(0, 0, 0, 0.1);
+        --sidebar-bg: rgba(240, 240, 250, 0.8);
+        --sidebar-hover: rgba(226, 232, 240, 0.8);
+        --sidebar-text: #334155;
+        --glass-highlight: rgba(255, 255, 255, 0.7);
+        --glass-border: rgba(226, 232, 240, 0.8);
     }
 `;
 document.head.appendChild(style); 

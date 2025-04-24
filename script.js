@@ -1,0 +1,491 @@
+document.addEventListener('DOMContentLoaded', () => {
+    // DOM Elements
+    const chatMessages = document.getElementById('chat-messages');
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+    const clearBtn = document.querySelector('.clear-btn');
+    const attachmentBtn = document.querySelector('.attachment-btn');
+    const voiceBtn = document.querySelector('.voice-btn');
+    const newChatBtn = document.getElementById('new-chat-btn');
+    const chatHistory = document.getElementById('chat-history');
+    const currentChatTitle = document.getElementById('current-chat-title');
+    const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+    const sidebar = document.querySelector('.sidebar');
+
+    // State management
+    let chats = [];
+    let currentChatId = null;
+
+    // Initialize app
+    initApp();
+
+    // Event listeners
+    sendBtn.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    
+    clearBtn.addEventListener('click', clearCurrentChat);
+    attachmentBtn.addEventListener('click', handleAttachment);
+    voiceBtn.addEventListener('click', handleVoice);
+    newChatBtn.addEventListener('click', createNewChat);
+    
+    mobileMenuBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('show');
+    });
+
+    // Auto resize textarea as user types
+    chatInput.addEventListener('input', () => {
+        chatInput.style.height = 'auto';
+        chatInput.style.height = (chatInput.scrollHeight) + 'px';
+    });
+
+    // Functions
+    function initApp() {
+        // Load chats from localStorage
+        loadChats();
+
+        // If no chats exist, create a new one
+        if (chats.length === 0) {
+            createNewChat();
+        } else {
+            // Load the most recent chat
+            loadChat(chats[0].id);
+        }
+
+        // Render chat history sidebar
+        renderChatHistory();
+    }
+
+    function loadChats() {
+        const savedChats = localStorage.getItem('genosChats');
+        if (savedChats) {
+            chats = JSON.parse(savedChats);
+        }
+    }
+
+    function saveChats() {
+        localStorage.setItem('genosChats', JSON.stringify(chats));
+    }
+
+    function createNewChat() {
+        // Create a new chat object
+        const newChat = {
+            id: Date.now().toString(),
+            title: 'New Conversation',
+            messages: [],
+            createdAt: new Date().toISOString()
+        };
+
+        // Add to the beginning of chats array
+        chats.unshift(newChat);
+        saveChats();
+
+        // Update UI
+        renderChatHistory();
+        loadChat(newChat.id);
+    }
+
+    function renderChatHistory() {
+        chatHistory.innerHTML = '';
+        
+        chats.forEach(chat => {
+            const chatItem = document.createElement('div');
+            chatItem.className = `chat-item ${chat.id === currentChatId ? 'active' : ''}`;
+            chatItem.dataset.id = chat.id;
+            
+            // Get the title or use the first message content or default
+            let title = chat.title;
+            if (title === 'New Conversation' && chat.messages.length > 0) {
+                // Use first user message as title
+                const firstUserMessage = chat.messages.find(msg => msg.sender === 'You');
+                if (firstUserMessage) {
+                    title = firstUserMessage.content.substring(0, 25) + (firstUserMessage.content.length > 25 ? '...' : '');
+                }
+            }
+            
+            chatItem.innerHTML = `
+                <i class="far fa-comment"></i>
+                <span>${title}</span>
+            `;
+            
+            chatItem.addEventListener('click', () => {
+                loadChat(chat.id);
+            });
+            
+            chatHistory.appendChild(chatItem);
+        });
+    }
+
+    function loadChat(chatId) {
+        // Find the chat
+        const chat = chats.find(c => c.id === chatId);
+        if (!chat) return;
+
+        // Update current chat
+        currentChatId = chatId;
+        currentChatTitle.textContent = chat.title;
+
+        // Clear messages area
+        chatMessages.innerHTML = '';
+
+        // Display messages
+        if (chat.messages.length === 0) {
+            // Add welcome message if chat is empty
+            const welcomeMessage = {
+                sender: 'GENOS',
+                content: 'Hello! I am GENOS, your AI coding assistant powered by n8n. I\'m connected to a real API and ready to help with your coding questions and tasks.',
+                timestamp: new Date().toISOString()
+            };
+            chat.messages.push(welcomeMessage);
+            saveChats();
+            addMessageToDOM('GENOS', welcomeMessage.content, 'ai-message', welcomeMessage.timestamp);
+        } else {
+            // Display existing messages
+            chat.messages.forEach(msg => {
+                addMessageToDOM(msg.sender, msg.content, msg.sender === 'You' ? 'user-message' : 'ai-message', msg.timestamp);
+            });
+        }
+
+        // Scroll to bottom
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        // Update active state in sidebar
+        document.querySelectorAll('.chat-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.id === chatId);
+        });
+
+        // Close mobile sidebar after selection
+        sidebar.classList.remove('show');
+    }
+
+    function sendMessage() {
+        const message = chatInput.value.trim();
+        if (!message) return;
+
+        // Add user message to the chat
+        const userMessage = {
+            sender: 'You',
+            content: message,
+            timestamp: new Date().toISOString()
+        };
+        
+        // Add to current chat
+        const currentChat = chats.find(c => c.id === currentChatId);
+        if (currentChat) {
+            currentChat.messages.push(userMessage);
+            
+            // Update chat title if it's the first message
+            if (currentChat.title === 'New Conversation' && currentChat.messages.length === 1) {
+                currentChat.title = message.substring(0, 25) + (message.length > 25 ? '...' : '');
+                currentChatTitle.textContent = currentChat.title;
+            }
+            
+            saveChats();
+            renderChatHistory();
+        }
+        
+        // Add message to DOM
+        addMessageToDOM('You', message, 'user-message');
+        
+        // Clear input
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+        
+        // Simulate AI thinking with loading indicator
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'message ai-message loading';
+        loadingEl.innerHTML = `
+            <div class="message-header ai-header">
+                <i class="fas fa-robot"></i> GENOS
+            </div>
+            <div class="message-content">
+                <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        `;
+        chatMessages.appendChild(loadingEl);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Get AI response from the webhook
+        getAIResponse(message, loadingEl);
+    }
+    
+    async function getAIResponse(userMessage, loadingElement) {
+        const webhookUrl = 'https://mic-test-123.app.n8n.cloud/webhook/n8n-test-agent';
+        
+        try {
+            // Prepare the request payload
+            const payload = {
+                message: userMessage,
+                userId: 'user_' + Date.now().toString(), // Generate unique user ID for session
+                timestamp: new Date().toISOString()
+            };
+            
+            // Call the webhook
+            const response = await fetch(webhookUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            // Remove the loading indicator
+            if (loadingElement) {
+                chatMessages.removeChild(loadingElement);
+            }
+            
+            if (!response.ok) {
+                throw new Error(`API responded with status: ${response.status}`);
+            }
+            
+            // Parse the response
+            const data = await response.json();
+            let aiResponseText = '';
+            
+            // Handle different response formats
+            if (data && typeof data === 'object') {
+                // If the response is an object, try to extract the message
+                if (data.message) {
+                    aiResponseText = data.message;
+                } else if (data.response) {
+                    aiResponseText = data.response;
+                } else if (data.text) {
+                    aiResponseText = data.text;
+                } else if (data.content) {
+                    aiResponseText = data.content;
+                } else {
+                    // If no recognized fields, stringify the whole object
+                    aiResponseText = JSON.stringify(data);
+                }
+            } else if (typeof data === 'string') {
+                // If the response is already a string
+                aiResponseText = data;
+            } else {
+                // Fallback message if response format is not recognized
+                aiResponseText = "I received a response but couldn't interpret it properly.";
+            }
+            
+            // Create AI message object
+            const aiMessage = {
+                sender: 'GENOS',
+                content: aiResponseText,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Add to current chat
+            const currentChat = chats.find(c => c.id === currentChatId);
+            if (currentChat) {
+                currentChat.messages.push(aiMessage);
+                saveChats();
+            }
+            
+            // Add to DOM
+            addMessageToDOM('GENOS', aiResponseText, 'ai-message');
+            
+        } catch (error) {
+            console.error('Error calling AI webhook:', error);
+            
+            // Remove the loading indicator if it exists
+            if (loadingElement) {
+                chatMessages.removeChild(loadingElement);
+            }
+            
+            // Send error message
+            const errorMessage = {
+                sender: 'GENOS',
+                content: `Sorry, I encountered an error while processing your request: ${error.message}. Please try again later.`,
+                timestamp: new Date().toISOString()
+            };
+            
+            // Add to current chat
+            const currentChat = chats.find(c => c.id === currentChatId);
+            if (currentChat) {
+                currentChat.messages.push(errorMessage);
+                saveChats();
+            }
+            
+            // Add to DOM
+            addMessageToDOM('GENOS', errorMessage.content, 'ai-message');
+        }
+    }
+    
+    function addMessageToDOM(sender, content, className, timestamp = null) {
+        const messageEl = document.createElement('div');
+        messageEl.className = `message ${className}`;
+        
+        const time = timestamp ? new Date(timestamp) : new Date();
+        const timeString = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        let icon = '';
+        if (className === 'user-message') {
+            icon = '<i class="fas fa-user"></i>';
+        } else {
+            icon = '<i class="fas fa-robot"></i>';
+        }
+        
+        messageEl.innerHTML = `
+            <div class="message-header ${className === 'user-message' ? 'user-header' : 'ai-header'}">
+                ${icon} ${sender}
+            </div>
+            <div class="message-content">${formatMessage(content)}</div>
+            <div class="message-time">${timeString}</div>
+        `;
+        
+        chatMessages.appendChild(messageEl);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    function formatMessage(text) {
+        // Convert URLs to links
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        return text.replace(urlRegex, url => `<a href="${url}" target="_blank">${url}</a>`)
+                  .replace(/\n/g, '<br>');
+    }
+    
+    function clearCurrentChat() {
+        if (!currentChatId) return;
+        
+        // Confirm before clearing
+        if (confirm('Are you sure you want to clear this chat?')) {
+            const currentChat = chats.find(c => c.id === currentChatId);
+            if (currentChat) {
+                currentChat.messages = [];
+                currentChat.title = 'New Conversation';
+                saveChats();
+                
+                // Update UI
+                chatMessages.innerHTML = '';
+                currentChatTitle.textContent = 'New Conversation';
+                renderChatHistory();
+            }
+        }
+    }
+    
+    function handleAttachment() {
+        // In a real app, this would open a file selector
+        alert('Attachment functionality would open a file selector here.');
+        
+        // For demo purposes, let's simulate adding an attachment message
+        const message = "I'm attaching a file...";
+        
+        // Add to current chat and DOM
+        const userMessage = {
+            sender: 'You',
+            content: message,
+            timestamp: new Date().toISOString()
+        };
+        
+        const currentChat = chats.find(c => c.id === currentChatId);
+        if (currentChat) {
+            currentChat.messages.push(userMessage);
+            saveChats();
+        }
+        
+        addMessageToDOM('You', message, 'user-message');
+        
+        // Simulate AI thinking with loading indicator
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'message ai-message loading';
+        loadingEl.innerHTML = `
+            <div class="message-header ai-header">
+                <i class="fas fa-robot"></i> GENOS
+            </div>
+            <div class="message-content">
+                <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        `;
+        chatMessages.appendChild(loadingEl);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Get AI response with attachment context
+        getAIResponse("The user is trying to attach a file. Could you explain what file types are supported?", loadingEl);
+    }
+    
+    function handleVoice() {
+        // In a real app, this would activate voice input
+        alert('Voice input functionality would activate the microphone here.');
+        
+        // For demo purposes, simulate voice input messages
+        const voiceTexts = [
+            "Tell me about coding in JavaScript",
+            "How do I create a React component?",
+            "Can you explain async/await in JavaScript?"
+        ];
+        
+        const randomVoiceText = voiceTexts[Math.floor(Math.random() * voiceTexts.length)];
+        chatInput.value = randomVoiceText;
+        
+        // Let the user see what was "transcribed" before sending
+        setTimeout(() => {
+            // Focus on the input field
+            chatInput.focus();
+        }, 500);
+    }
+});
+
+// Add CSS for the typing indicator
+const style = document.createElement('style');
+style.textContent = `
+    .typing-indicator {
+        display: flex;
+        gap: 4px;
+    }
+    
+    .typing-indicator span {
+        width: 6px;
+        height: 6px;
+        background-color: var(--primary-color);
+        border-radius: 50%;
+        animation: typing-bounce 1.3s infinite ease-in-out;
+        opacity: 0.8;
+    }
+    
+    .typing-indicator span:nth-child(1) {
+        animation-delay: 0s;
+    }
+    
+    .typing-indicator span:nth-child(2) {
+        animation-delay: 0.15s;
+    }
+    
+    .typing-indicator span:nth-child(3) {
+        animation-delay: 0.3s;
+    }
+    
+    @keyframes typing-bounce {
+        0%, 60%, 100% {
+            transform: translateY(0);
+        }
+        30% {
+            transform: translateY(-4px);
+        }
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .message {
+        animation: fadeIn 0.3s ease-out;
+    }
+`;
+document.head.appendChild(style); 

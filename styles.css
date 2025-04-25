@@ -263,6 +263,18 @@ body {
     margin-top: 8px;
 }
 
+.profile-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: all 0.2s;
+    opacity: 0.8;
+}
+
+.profile-link:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+
 /* Chat Container */
 .chat-container {
     flex: 1;

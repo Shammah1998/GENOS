@@ -201,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add welcome message if chat is empty
             const welcomeMessage = {
                 sender: 'GENOS',
-                content: 'Hello! I am GENOS, your AI coding assistant powered by n8n. I\'m connected to a real API and ready to help with your coding questions and tasks.',
+                content: 'Hi, I\'m Genos, your AI assistant. I\'m here to provide information, answer your questions, and assist with tasks.',
                 timestamp: new Date().toISOString()
             };
             chat.messages.push(welcomeMessage);
@@ -227,7 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Webhook URL for n8n workflow
-    const WEBHOOK_URL = 'https://my-automations.app.n8n.cloud/webhook/my-workflow';
+    const WEBHOOK_URL = 'https://my-automations.app.n8n.cloud/webhook-test/my-workflow';
 
     // Function to send message to n8n workflow
     async function sendMessageToAPI(message) {

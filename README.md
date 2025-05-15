@@ -25,7 +25,17 @@ GENOS is a modern AI chat interface built with HTML, CSS, and JavaScript. It fea
 
 ## API Connection
 
-GENOS connects to an n8n workflow API endpoint for AI responses. The current implementation sends user messages to the API and displays the responses in the chat interface.
+GENOS connects to an n8n workflow API endpoint for AI responses. The webhook endpoint is:
+```
+https://my-automations.app.n8n.cloud/webhook-test/my-workflow
+```
+
+The interface sends user messages to this endpoint as JSON payloads and displays the responses in real-time in the chat interface. The API is expected to return responses in the format:
+```json
+{
+    "text": "AI response text here"
+}
+```
 
 ## Credits
 

@@ -226,7 +226,37 @@ document.addEventListener('DOMContentLoaded', () => {
         sidebar.classList.remove('show');
     }
 
-    function sendMessage() {
+    // Webhook URL for n8n workflow
+    const WEBHOOK_URL = 'https://my-automations.app.n8n.cloud/webhook/my-workflow';
+
+    // Function to send message to n8n workflow
+    async function sendMessageToAPI(message) {
+        try {
+            console.log('Sending message to API:', message);
+            
+            const response = await fetch(WEBHOOK_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: message
+                })
+            });
+            
+            // Get response text
+            const responseText = await response.text();
+            
+            // No need to parse as JSON, just return as text
+            return { text: responseText };
+            
+        } catch (error) {
+            console.error('Error in sendMessageToAPI:', error);
+            throw error;
+        }
+    }
+
+    async function sendMessage() {
         const message = chatInput.value.trim();
         if (!message) return;
 
@@ -287,107 +317,62 @@ document.addEventListener('DOMContentLoaded', () => {
         chatMessages.appendChild(loadingEl);
         chatMessages.scrollTop = chatMessages.scrollHeight;
         
-        // Get AI response from the webhook
-        getAIResponse(message, loadingEl);
-    }
-    
-    async function getAIResponse(userMessage, loadingElement) {
-        const webhookUrl = 'https://mic-test-123.app.n8n.cloud/webhook/n8n-test-agent';
-        
         try {
-            // Prepare the request payload
-            const payload = {
-                message: userMessage,
-                userId: 'user_' + Date.now().toString(), // Generate unique user ID for session
-                timestamp: new Date().toISOString()
-            };
+            // Show loading state
+            const response = await sendMessageToAPI(message);
             
-            // Call the webhook
-            const response = await fetch(webhookUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload)
-            });
-            
-            // Remove the loading indicator
-            if (loadingElement) {
-                chatMessages.removeChild(loadingElement);
-            }
-            
-            if (!response.ok) {
-                throw new Error(`API responded with status: ${response.status}`);
-            }
-            
-            // Parse the response
-            const data = await response.json();
-            let aiResponseText = '';
-            
-            // Handle different response formats
-            if (data && typeof data === 'object') {
-                // If the response is an object, try to extract the message
-                if (data.message) {
-                    aiResponseText = data.message;
-                } else if (data.response) {
-                    aiResponseText = data.response;
-                } else if (data.text) {
-                    aiResponseText = data.text;
-                } else if (data.content) {
-                    aiResponseText = data.content;
-                } else {
-                    // If no recognized fields, stringify the whole object
-                    aiResponseText = JSON.stringify(data);
+            // Remove loading message
+            chatMessages.removeChild(loadingEl);
+
+            // Add AI response to chat history and DOM
+            if (response) {
+                // Log the response for debugging
+                console.log('Processing response:', response);
+                
+                // Extract the message from the response
+                let messageText;
+                if (typeof response === 'string') {
+                    messageText = response;
+                } else if (typeof response === 'object') {
+                    // Try different possible response formats
+                    messageText = response.text || response.message || response.response || 
+                                response.content || response.answer || response.result;
+                    
+                    // If we still don't have text, stringify the whole response
+                    if (!messageText && Object.keys(response).length > 0) {
+                        messageText = JSON.stringify(response, null, 2);
+                    }
                 }
-            } else if (typeof data === 'string') {
-                // If the response is already a string
-                aiResponseText = data;
+                
+                // Fallback if we still don't have a message
+                if (!messageText) {
+                    messageText = 'Received empty response from server';
+                }
+                
+                const aiMessage = {
+                    sender: 'GENOS',
+                    content: messageText,
+                    timestamp: new Date().toISOString()
+                };
+                
+                // Add to current chat
+                const currentChat = chats.find(c => c.id === currentChatId);
+                if (currentChat) {
+                    currentChat.messages.push(aiMessage);
+                    saveChats();
+                }
+                
+                // Add to DOM
+                addMessageToDOM('GENOS', messageText, 'ai-message', aiMessage.timestamp);
             } else {
-                // Fallback message if response format is not recognized
-                aiResponseText = "I received a response but couldn't interpret it properly.";
+                const errorMessage = 'Sorry, I encountered an error processing your request.';
+                addMessageToDOM('GENOS', errorMessage, 'ai-message');
             }
-            
-            // Create AI message object
-            const aiMessage = {
-                sender: 'GENOS',
-                content: aiResponseText,
-                timestamp: new Date().toISOString()
-            };
-            
-            // Add to current chat
-            const currentChat = chats.find(c => c.id === currentChatId);
-            if (currentChat) {
-                currentChat.messages.push(aiMessage);
-                saveChats();
-            }
-            
-            // Add to DOM
-            addMessageToDOM('GENOS', aiResponseText, 'ai-message');
-            
         } catch (error) {
-            console.error('Error calling AI webhook:', error);
-            
-            // Remove the loading indicator if it exists
-            if (loadingElement) {
-                chatMessages.removeChild(loadingElement);
-            }
-            
-            // Send error message
-            const errorMessage = {
-                sender: 'GENOS',
-                content: `Sorry, I encountered an error while processing your request: ${error.message}. Please try again later.`,
-                timestamp: new Date().toISOString()
-            };
-            
-            // Add to current chat
-            const currentChat = chats.find(c => c.id === currentChatId);
-            if (currentChat) {
-                currentChat.messages.push(errorMessage);
-                saveChats();
-            }
-            
-            // Add to DOM
-            addMessageToDOM('GENOS', errorMessage.content, 'ai-message');
+            console.error('Error:', error);
+            chatMessages.removeChild(loadingEl);
+            const errorMessage = 'Sorry, I encountered an error processing your request.';
+            addMessageToDOM('GENOS', errorMessage, 'ai-message');
         }
     }
     
@@ -731,4 +716,4 @@ style.textContent = `
         --glass-border: rgba(226, 232, 240, 0.8);
     }
 `;
-document.head.appendChild(style); 
+document.head.appendChild(style);
